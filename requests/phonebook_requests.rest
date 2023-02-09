@@ -1,0 +1,13 @@
+GET http://localhost:3001/api/persons
+
+###
+POST http://localhost:3001/api/persons
+content-Type: application/json
+
+{
+    "name": "random test",
+    "number": "123-123-123"
+}
+
+###
+DELETE http://localhost:3001/api/persons/2
