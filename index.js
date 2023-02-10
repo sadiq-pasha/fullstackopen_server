@@ -1,5 +1,6 @@
 const express = require('express')
 const morgan = require('morgan')
+const cors = require('cors')
 
 const app = express()
 
@@ -40,8 +41,9 @@ const unknownEndpoint = (request, response) => {
 morgan.token('post-content', function(request, response) {return JSON.stringify(request.body)})
 
 app.use(express.json())
-app.use(requestLogger)
+app.use(cors())
 app.use(morgan(':method :url :status :res[content-length] :response-time ms :post-content'))
+app.use(requestLogger)
 
 app.get('/', (request, response) => {
     response.send('<h1>welcome to the phonebook</h1>')
@@ -56,6 +58,7 @@ app.get('/info', (request, response) => {
     })
     
 app.get('/api/persons', (request, response) => {
+    console.log('sending response')
     response.json(persons)
 })
 
@@ -108,7 +111,7 @@ app.post('/api/persons', (request, response) => {
 
 app.use(unknownEndpoint)
 
-const PORT = process.env.PORT || 3001
+const PORT = 3001
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`)
 })
