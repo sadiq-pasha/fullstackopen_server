@@ -30,7 +30,6 @@ const requestLogger = (request, response, next) => {
     console.log('Method:', request.method)
     console.log('Path:', request.path)
     console.log('Body:', request.body)
-    console.log('----')
     next()
 }
 
@@ -58,7 +57,7 @@ app.get('/info', (request, response) => {
     })
     
 app.get('/api/persons', (request, response) => {
-    console.log('sending response')
+    console.log('fulfilling get request')
     response.json(persons)
 })
 
@@ -100,7 +99,7 @@ app.post('/api/persons', (request, response) => {
         }
         persons = persons.concat(newEntryObject)
         response.statusMessage = `Entry for ${request.body.name} was created in the phonebook`
-        return response.status(200).end()
+        return response.status(200).json(newEntryObject)
     }
     else {
         response.status(400).json({
