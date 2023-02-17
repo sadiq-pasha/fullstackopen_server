@@ -1,8 +1,11 @@
 const express = require('express')
 const morgan = require('morgan')
 const cors = require('cors')
-
+const needle = require('needle')
 const app = express()
+require('dotenv').config()
+
+const key = process.env.open_weather_key
 
 let notes = [
     {
@@ -87,7 +90,6 @@ app.get('/api/persons', (request, response) => {
 app.get('/api/persons/:id', (request, response) => {
     const requestID = Number(request.params.id)
     const person = persons.find(person => person.id === requestID)
-    console.log(person)
     if (person) {
         response.json(person)
     } else {
@@ -155,25 +157,46 @@ app.post('/api/notes', (request, response) => {
             error: 'content missing'
         })
     }
+    
+    existingIDs = notes.map(note => note.id)
+    let max_notes = 1000
+    
+    if (existingIDs.length === max_notes) {
+        return response.status(507).json({
+            error: 'note server memory full. delete notes to continue'
+        })
+    }
+    
+    const generateID = () => {
+        do {
+            id = Math.floor(Math.random() * max_notes)
+        }
+        while (existingIDs.includes(id))
+        return id
+    }
+    
     const note = {
         content: request.body.content,
         important: request.body.important || false,
         date: new Date(),
         id: generateID(),
     }
+    
     notes = notes.concat(note)
     response.json(note)
 })
 
 app.delete('/api/notes/:id', (request, response) => {
     const id = Number(request.params.id)
-    console.log(id)
     notes = notes.filter(note => note.id !== id)
     response.status(204).end()
 })
 
-app.get('/api/countries', (request, response) => {
-    response.json(countries)
+app.get('/api/countries/:latitude&:longitude', (request, response) => {
+    needle('get', `https://api.openweathermap.org/data/2.5/forecast?lat=${request.params.latitude}&lon=${request.params.longitude}&cnt=2&appid=${key}`)
+        .then(weather_data => {
+            response.json(weather_data.body).end()
+        })
 })
 
 app.use(unknownEndpoint)
@@ -182,3 +205,5 @@ const PORT = 3001
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`)
 })
+
+// `https://api.openweathermap.org/data/2.5/forecast?lat=${latitude}&lon=${longitude}&cnt=2&appid=${API_KEY}`
