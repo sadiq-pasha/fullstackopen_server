@@ -2,31 +2,23 @@ const express = require('express')
 const morgan = require('morgan')
 const cors = require('cors')
 const needle = require('needle')
-const app = express()
+const mongoose = require('mongoose')
+
+const Note = require('./models/note')
+const PhoneBook = require('./models/phonebook')
 require('dotenv').config()
 
-const key = process.env.open_weather_key
 
-let notes = [
-    {
-      "id": 1,
-      "content": "HTML is easy",
-      "date": "2019-05-30T17:30:31.098Z",
-      "important": true
-    },
-    {
-      "id": 2,
-      "content": "Browser can execute only JavaScript",
-      "date": "2019-05-30T18:39:34.091Z",
-      "important": true
-    },
-    {
-      "id": 3,
-      "content": "GET and POST are the most important methods of HTTP protocol",
-      "date": "2019-05-30T19:20:14.298Z",
-      "important": true
-    }
-]
+const app = express()
+
+const key = process.env.open_weather_key
+const db_url = process.env.mongo_databse_url
+
+mongoose.set('strictQuery', false)
+mongoose.connect(db_url)
+const db = mongoose.connection
+db.on('error', () => console.log('connection unsuccessful'))
+db.once('open', () => console.log('connected'))
 
 let persons = [
     { 
@@ -50,6 +42,7 @@ let persons = [
       "number": "39-23-6423122"
     }
 ]
+
 
 const requestLogger = (request, response, next) => {
     console.log('Method:', request.method)
@@ -83,48 +76,53 @@ app.get('/info', (request, response) => {
     })
     
 app.get('/api/persons', (request, response) => {
-    response.json(persons)
+    PhoneBook.find({})
+        .then(result => response.json(result))
 })
 
 
 app.get('/api/persons/:id', (request, response) => {
-    const requestID = Number(request.params.id)
-    const person = persons.find(person => person.id === requestID)
-    if (person) {
-        response.json(person)
-    } else {
-        response.statusMessage= 'Entry not found'
-        response.status(404).end()
-    }
+    const requestID = request.params.id
+    PhoneBook.findById(requestID, function(err, docs) {
+        if (!docs) {
+            return response.status(404).json({
+                error: 'Entry not found.'
+            })
+        }
+        response.status(200).json(docs)
+    })
 })
 
 app.delete('/api/persons/:id', (request, response) => {
-    const requestID = Number(request.params.id)
-    persons = persons.filter(person => person.id !== requestID)
-    response.statusMessage = `Entry with id ${requestID} was deleted`
-    response.status(204).end()
+    const requestID = request.params.id
+    PhoneBook.findByIdAndDelete(requestID, function(err, doc) {
+        if (!doc) {
+            return response.status(404).json({error: 'Object with ID not found. Unable to delete.'})
+        }
+        response.statusMessage = `Entry with id ${requestID} was deleted.`
+        response.status(204).end()
+    })
 })
 
 app.post('/api/persons', (request, response) => {
     if (request.body.name && request.body.number) {
-        if (persons.map(p => p.name).includes(request.body.name)){
-            return response.status(400).json({
-                "error": "Name on server must be unique"
-            })
-        }
-        existingIDs = persons.map(p => p.id)
-        newID = Math.floor(Math.random() * 1001)
-        while (existingIDs.includes(newID)) {
-            newID = Math.floor(Math.random() * 1001)
-        }
-        newEntryObject = {
-            "id": newID,
-            "name": request.body.name,
-            "number": request.body.number
-        }
-        persons = persons.concat(newEntryObject)
-        response.statusMessage = `Entry for ${request.body.name} was created in the phonebook`
-        return response.status(200).json(newEntryObject)
+        PhoneBook.find({ name: request.body.name }, function (err, docs){
+            if (docs.length > 0) {
+                return response.status(500).send({
+                    error: "POST request made to already existing resource. Client side data not current"
+                })
+            } else {
+                phoneBookEntry = new PhoneBook({
+                    name: request.body.name,
+                    phoneNumber: request.body.number
+                })
+                phoneBookEntry.save()
+                    .then(savednumber => {
+                        response.statusMessage = `Entry for ${request.body.name} was created in the phonebook`
+                        return response.status(200).json(savednumber)
+                    })
+            }
+        })
     }
     else {
         response.status(400).json({
@@ -133,63 +131,52 @@ app.post('/api/persons', (request, response) => {
     }
 })
 
+app.put('/api/persons/:id', (request, response) => {
+    updatedEntry = {
+        phoneNumber: request.body.number
+    }
+    PhoneBook.findByIdAndUpdate({ _id: request.params.id }, updatedEntry, {returnDocument:'after'}, (err, docs) => {
+        if (!docs) {
+            return response.status(404).json({error: 'Entry not found. Unable to update.'})
+        }
+        response.status(200).json(docs)
+    })
+})
+
 app.get('/api/notes', (request, response) => {
-    response.json(notes)
+    Note.find({})
+        .then(notes => {
+            response.json(notes)
+        })
 })
 
 app.get('/api/notes/:id', (request, response) => {
-    const id = Number(request.params.id)
-    const note = notes.find(note => {
-        return note.id === id
-    })
-    if (note) {
-        response.json(note)
-    }
-    else {
-        response.statusMessage = 'Resource does not exist'
-        response.status(404).end()
-    }
+    const id = request.params.id
+    Note.findById(id)
+        .then(note => response.json(note))
 })
 
 app.post('/api/notes', (request, response) => {
     if (!request.body.content) {
-        return response.status(404).json({
+        return response.status(400).json({
             error: 'content missing'
         })
     }
     
-    existingIDs = notes.map(note => note.id)
-    let max_notes = 1000
-    
-    if (existingIDs.length === max_notes) {
-        return response.status(507).json({
-            error: 'note server memory full. delete notes to continue'
-        })
-    }
-    
-    const generateID = () => {
-        do {
-            id = Math.floor(Math.random() * max_notes)
-        }
-        while (existingIDs.includes(id))
-        return id
-    }
-    
-    const note = {
+    const note = new Note ({
         content: request.body.content,
         important: request.body.important || false,
         date: new Date(),
-        id: generateID(),
-    }
-    
-    notes = notes.concat(note)
-    response.json(note)
+    })
+
+    note.save()
+        .then(savedNote => response.json(savedNote))    
 })
 
 app.delete('/api/notes/:id', (request, response) => {
-    const id = Number(request.params.id)
-    notes = notes.filter(note => note.id !== id)
-    response.status(204).end()
+    const id = request.params.id
+    Note.findByIdAndDelete(id)
+        .then(response.status(204).end())
 })
 
 app.get('/api/countries/:latitude&:longitude', (request, response) => {
@@ -205,5 +192,3 @@ const PORT = 3001
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`)
 })
-
-// `https://api.openweathermap.org/data/2.5/forecast?lat=${latitude}&lon=${longitude}&cnt=2&appid=${API_KEY}`

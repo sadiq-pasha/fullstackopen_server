@@ -10,4 +10,16 @@ content-Type: application/json
 }
 
 ###
-DELETE http://localhost:3001/api/persons/2
+DELETE http://localhost:3001/api/persons/63fc1d41884e64353796fcd9
+
+###
+GET http://localhost:3001/api/persons/63fc1b296376e44fc1064354
+
+###
+PUT http://localhost:3001/api/persons/63fc30437bbcd907fbd523d0
+content-Type: application/json
+
+{
+    "name": "not this options test",
+    "number": "88888"
+}

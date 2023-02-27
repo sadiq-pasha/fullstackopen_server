@@ -2,3 +2,7 @@
 /node_modules
 .env
 .gitignore
+
+# ignore all request files
+requests/notes_requests.rest
+requests/phonebook_requests.rest
